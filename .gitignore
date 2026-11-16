@@ -1,0 +1,31 @@
+# dependencies
+/node_modules
+
+# next.js
+/.next/
+/out/
+next-env.d.ts
+
+# build / test output
+/build
+/coverage
+*.tsbuildinfo
+
+# environment files (never commit real secrets)
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# uploaded documents (file storage is added in a later stage)
+/storage/
+
+# logs
+npm-debug.log*
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
