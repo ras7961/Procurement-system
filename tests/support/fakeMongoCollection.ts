@@ -10,21 +10,29 @@ type Doc = Record<string, unknown> & { _id: unknown };
  */
 export class FakeMongoCollection {
   readonly documents = new Map<unknown, Doc>();
-  readonly indexes: Array<{ spec: Record<string, number>; name?: string }> = [];
+  readonly indexes: Array<{ spec: Record<string, number>; name?: string; unique?: boolean }> = [];
   /** Runs once, just before the next findOneAndUpdate / deleteOne is evaluated: use it to change the data "between the read and the write". */
   beforeNextWrite: (() => void) | null = null;
   /** When set, every operation fails with this error (a stand-in for a driver failure). */
   failWith: Error | null = null;
 
-  async createIndex(spec: Record<string, number>, options: { name?: string } = {}): Promise<string> {
+  async createIndex(spec: Record<string, number>, options: { name?: string; unique?: boolean } = {}): Promise<string> {
     this.#maybeFail();
-    this.indexes.push({ spec, name: options.name });
+    this.indexes.push({ spec, name: options.name, unique: options.unique });
     return options.name ?? "index";
   }
 
   async insertOne(document: Doc): Promise<{ insertedId: unknown }> {
     this.#maybeFail();
-    if (this.documents.has(document._id)) throw Object.assign(new Error("E11000 duplicate key error"), { code: 11000 });
+    if (this.documents.has(document._id)) {
+      throw Object.assign(new Error("E11000 duplicate key error"), { code: 11000, keyPattern: { _id: 1 } });
+    }
+    // Unique indexes behave like MongoDB's: a second document with the same key values is refused with E11000 and its keyPattern.
+    for (const index of this.indexes.filter((candidate) => candidate.unique)) {
+      const keys = Object.keys(index.spec);
+      const clash = [...this.documents.values()].some((existing) => keys.every((key) => existing[key] === document[key]));
+      if (clash) throw Object.assign(new Error("E11000 duplicate key error"), { code: 11000, keyPattern: index.spec });
+    }
     this.documents.set(document._id, structuredClone(document));
     return { insertedId: document._id };
   }

@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { createContainer } from "@/infrastructure/container";
 import { MongoRoleRepository } from "@/repositories/MongoRoleRepository";
+import { BidController } from "@/controllers/BidController";
+import { MongoEvaluationRepository } from "@/repositories/MongoEvaluationRepository";
+import { BidEvaluationUseCase } from "@/usecases/evaluation/BidEvaluationUseCase";
+import { EvaluationController } from "@/controllers/EvaluationController";
+import { MongoBidRepository } from "@/repositories/MongoBidRepository";
+import { BidSubmissionUseCase } from "@/usecases/bid/BidSubmissionUseCase";
 import { MongoTenderRepository } from "@/repositories/MongoTenderRepository";
 import { MongoUserRepository } from "@/repositories/MongoUserRepository";
 import { Argon2PasswordService } from "@/services/Argon2PasswordService";
@@ -31,6 +37,12 @@ describe("composition root (Stage 1B wiring)", () => {
     expect(container.supplierRepository).toBeInstanceOf(MongoSupplierRepository);
     expect(container.supplierManagement).toBeInstanceOf(SupplierManagementUseCase);
     expect(container.supplierController).toBeInstanceOf(SupplierController);
+    expect(container.bidRepository).toBeInstanceOf(MongoBidRepository);
+    expect(container.bidSubmission).toBeInstanceOf(BidSubmissionUseCase);
+    expect(container.bidController).toBeInstanceOf(BidController);
+    expect(container.evaluationRepository).toBeInstanceOf(MongoEvaluationRepository);
+    expect(container.bidEvaluation).toBeInstanceOf(BidEvaluationUseCase);
+    expect(container.evaluationController).toBeInstanceOf(EvaluationController);
     expect(container.passwordService).toBeInstanceOf(Argon2PasswordService);
   });
 

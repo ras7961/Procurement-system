@@ -1,3 +1,4 @@
+import { Bid, type SubmitBidProps } from "@/entities/Bid";
 import { Role, type CreateRoleProps } from "@/entities/Role";
 import { Supplier, type RegisterSupplierProfileProps } from "@/entities/Supplier";
 import { Tender, type CreateTenderProps } from "@/entities/Tender";
@@ -66,6 +67,21 @@ export function makeSupplier(overrides: Partial<RegisterSupplierProfileProps> = 
     phoneNumber: "+251 11 123 4567",
     address: "Bole Road, Addis Ababa",
     registrationDate: TENDER_NOW,
+    ...overrides,
+  });
+}
+
+/** A valid Submitted bid submitted at TENDER_NOW. Each call gets its own id, tender and supplier unless overridden. */
+export function makeBid(overrides: Partial<SubmitBidProps> = {}): Bid {
+  const id = nextId("bid");
+  return Bid.submit({
+    bidId: id,
+    tenderId: nextId("bid-tender"),
+    supplierId: nextId("bid-supplier"),
+    technicalProposal: "We will deliver 40 desks and 80 chairs within 30 days of the contract.",
+    financialProposal: 240000,
+    supportingDocuments: ["doc-trade-licence", "doc-experience-letter"],
+    submissionDate: TENDER_NOW,
     ...overrides,
   });
 }

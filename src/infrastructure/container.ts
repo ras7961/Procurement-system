@@ -3,11 +3,13 @@ import { HealthController } from "@/controllers/HealthController";
 import { SupplierController } from "@/controllers/SupplierController";
 import { TenderController } from "@/controllers/TenderController";
 import { AuthorizationGuard } from "@/controllers/AuthorizationGuard";
+import { BidController } from "@/controllers/BidController";
 import { SessionAuthenticator } from "@/controllers/SessionAuthenticator";
 import { SESSION_COOKIE_NAME, type SessionCookieSettings } from "@/controllers/sessionCookie";
 import { EnvironmentConfiguration } from "@/infrastructure/configuration/EnvironmentConfiguration";
 import { MongoDBConnection } from "@/infrastructure/database/MongoDBConnection";
 import { LoggingAndDeploymentConfiguration } from "@/infrastructure/logging/LoggingAndDeploymentConfiguration";
+import type { BidRepositoryInterface } from "@/interfaces/repositories/BidRepositoryInterface";
 import type { RevokedTokenRepositoryInterface } from "@/interfaces/repositories/RevokedTokenRepositoryInterface";
 import type { RoleRepositoryInterface } from "@/interfaces/repositories/RoleRepositoryInterface";
 import type { SupplierRepositoryInterface } from "@/interfaces/repositories/SupplierRepositoryInterface";
@@ -15,6 +17,7 @@ import type { TenderRepositoryInterface } from "@/interfaces/repositories/Tender
 import type { UserRepositoryInterface } from "@/interfaces/repositories/UserRepositoryInterface";
 import type { PasswordServiceInterface } from "@/interfaces/services/PasswordServiceInterface";
 import type { TokenServiceInterface } from "@/interfaces/services/TokenServiceInterface";
+import { MongoBidRepository } from "@/repositories/MongoBidRepository";
 import { MongoRevokedTokenRepository } from "@/repositories/MongoRevokedTokenRepository";
 import { MongoRoleRepository } from "@/repositories/MongoRoleRepository";
 import { MongoSupplierRepository } from "@/repositories/MongoSupplierRepository";
@@ -29,6 +32,11 @@ import { GetCurrentUserUseCase } from "@/usecases/authentication/GetCurrentUserU
 import { LoginUseCase } from "@/usecases/authentication/LoginUseCase";
 import { LogoutUseCase } from "@/usecases/authentication/LogoutUseCase";
 import { RegisterSupplierUseCase } from "@/usecases/authentication/RegisterSupplierUseCase";
+import { BidSubmissionUseCase } from "@/usecases/bid/BidSubmissionUseCase";
+import { BidEvaluationUseCase } from "@/usecases/evaluation/BidEvaluationUseCase";
+import { EvaluationController } from "@/controllers/EvaluationController";
+import { MongoEvaluationRepository } from "@/repositories/MongoEvaluationRepository";
+import type { EvaluationRepositoryInterface } from "@/interfaces/repositories/EvaluationRepositoryInterface";
 import { SupplierManagementUseCase } from "@/usecases/supplier/SupplierManagementUseCase";
 import { TenderManagementUseCase } from "@/usecases/tender/TenderManagementUseCase";
 import { AuthorizeUseCase } from "@/usecases/authorization/AuthorizeUseCase";
@@ -55,6 +63,9 @@ export interface Container {
   tenderRepository: TenderRepositoryInterface;
   /** Stage 2D: supplier profile persistence. */
   supplierRepository: SupplierRepositoryInterface;
+  bidRepository: BidRepositoryInterface;
+  /** Stage 3: evaluation persistence. */
+  evaluationRepository: EvaluationRepositoryInterface;
   passwordService: PasswordServiceInterface;
   revokedTokenRepository: RevokedTokenRepositoryInterface;
   tokenService: TokenServiceInterface;
@@ -79,6 +90,12 @@ export interface Container {
   /** Stage 2D: supplier profile operations and HTTP endpoints. */
   supplierManagement: SupplierManagementUseCase;
   supplierController: SupplierController;
+  /** Stage 2E: bid submission operations and HTTP endpoints. */
+  bidSubmission: BidSubmissionUseCase;
+  bidController: BidController;
+  /** Stage 3: read-only evaluation operations and endpoints (writes are blocked by the missing committee assignment model). */
+  bidEvaluation: BidEvaluationUseCase;
+  evaluationController: EvaluationController;
   authenticationController: AuthenticationController;
   healthController: HealthController;
 }
@@ -93,6 +110,8 @@ export function createContainer(source: Readonly<Record<string, string | undefin
   const roleRepository = new MongoRoleRepository(mongoDB);
   const tenderRepository = new MongoTenderRepository(mongoDB);
   const supplierRepository = new MongoSupplierRepository(mongoDB);
+  const bidRepository = new MongoBidRepository(mongoDB);
+  const evaluationRepository = new MongoEvaluationRepository(mongoDB);
   // Argon2id. The native library is loaded on the first hash/verify call.
   const passwordService = new Argon2PasswordService();
 
@@ -137,6 +156,18 @@ export function createContainer(source: Readonly<Record<string, string | undefin
     logger,
   });
 
+  const bidSubmission = new BidSubmissionUseCase(authorize, bidRepository, tenderRepository, supplierRepository);
+  const bidController = new BidController(bidSubmission, authorizationGuard, {
+    allowedOrigin: () => configuration.getAppOrigin(),
+    logger,
+  });
+
+  const bidEvaluation = new BidEvaluationUseCase(authorize, evaluationRepository, tenderRepository);
+  const evaluationController = new EvaluationController(bidEvaluation, authorizationGuard, {
+    allowedOrigin: () => configuration.getAppOrigin(),
+    logger,
+  });
+
   const probe = new SystemHealthProbeAdapter(configuration, mongoDB);
   const healthController = new HealthController(new CheckSystemHealthUseCase(probe));
 
@@ -148,6 +179,8 @@ export function createContainer(source: Readonly<Record<string, string | undefin
     roleRepository,
     tenderRepository,
     supplierRepository,
+    bidRepository,
+    evaluationRepository,
     passwordService,
     revokedTokenRepository,
     tokenService,
@@ -165,6 +198,10 @@ export function createContainer(source: Readonly<Record<string, string | undefin
     tenderController,
     supplierManagement,
     supplierController,
+    bidSubmission,
+    bidController,
+    bidEvaluation,
+    evaluationController,
     authenticationController,
     healthController,
   };
